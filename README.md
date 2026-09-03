@@ -51,7 +51,3 @@ All input variables are documented in `main/variables.tf`.
 - Terraform >= 1.5
 - AWS provider >= 5.79, < 6.0
 - Configured AWS credentials
-
-## License
-
-MIT
