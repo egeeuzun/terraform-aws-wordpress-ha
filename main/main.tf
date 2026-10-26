@@ -163,12 +163,18 @@ module "alb" {
 
 module "efs" {
   source = "../modules/efs"
+  count  = var.enable_efs ? 1 : 0
 
   name            = local.name
   data_subnet_ids = module.network.data_subnet_ids
   efs_sg_id       = module.security.efs_sg_id
 
   shared_code_dirs = var.enable_plugin_installs
+}
+
+moved {
+  from = module.efs
+  to   = module.efs[0]
 }
 
 module "rds" {
@@ -220,16 +226,18 @@ module "ecs" {
   wp_salt_ssm_arns       = { for k, p in aws_ssm_parameter.wp_salt : k => p.arn }
   memcached_endpoint     = join(",", [for a in module.elasticache.node_addresses : "${a}:11211"])
   wp_home                = "https://${module.cdn.cloudfront_domain_name}"
-  efs_id                 = module.efs.efs_id
-  efs_arn                = module.efs.efs_arn
-  efs_access_point_id    = module.efs.access_point_id
-  efs_access_point_arn   = module.efs.access_point_arn
+
+  efs_enabled          = var.enable_efs
+  efs_id               = one(module.efs[*].efs_id)
+  efs_arn              = one(module.efs[*].efs_arn)
+  efs_access_point_id  = one(module.efs[*].access_point_id)
+  efs_access_point_arn = one(module.efs[*].access_point_arn)
 
   shared_code_enabled          = var.enable_plugin_installs
-  efs_plugins_access_point_id  = module.efs.plugins_access_point_id
-  efs_plugins_access_point_arn = module.efs.plugins_access_point_arn
-  efs_themes_access_point_id   = module.efs.themes_access_point_id
-  efs_themes_access_point_arn  = module.efs.themes_access_point_arn
+  efs_plugins_access_point_id  = one(module.efs[*].plugins_access_point_id)
+  efs_plugins_access_point_arn = one(module.efs[*].plugins_access_point_arn)
+  efs_themes_access_point_id   = one(module.efs[*].themes_access_point_id)
+  efs_themes_access_point_arn  = one(module.efs[*].themes_access_point_arn)
 
   media_bucket_enabled = var.offload_uploads_to_s3
   media_bucket_name    = module.s3.static_bucket_name
@@ -291,7 +299,7 @@ module "backup" {
   source = "../modules/backup"
 
   name          = local.name
-  resource_arns = [module.efs.efs_arn, module.rds.db_arn]
+  resource_arns = compact([one(module.efs[*].efs_arn), module.rds.db_arn])
 }
 
 module "cicd" {
@@ -382,7 +390,8 @@ output "memcached_endpoint" {
 }
 
 output "efs_id" {
-  value = module.efs.efs_id
+  description = "enable_efs kapaliyken null"
+  value       = one(module.efs[*].efs_id)
 }
 
 output "ecs_cluster_name" {

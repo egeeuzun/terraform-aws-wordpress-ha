@@ -78,20 +78,30 @@ variable "wp_home" {
   default     = ""
 }
 
+variable "efs_enabled" {
+  description = "uploads dizinini EFS'ten mount eder. Kapaliyken uploads konteynerin gecici diskindedir; medya S3'e offload edilmiyorsa dosyalar task'la birlikte kaybolur."
+  type        = bool
+  default     = true
+}
+
 variable "efs_id" {
-  type = string
+  type    = string
+  default = null
 }
 
 variable "efs_access_point_id" {
-  type = string
+  type    = string
+  default = null
 }
 
 variable "efs_access_point_arn" {
-  type = string
+  type    = string
+  default = null
 }
 
 variable "efs_arn" {
-  type = string
+  type    = string
+  default = null
 }
 
 variable "enable_execute_command" {

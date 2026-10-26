@@ -14,13 +14,19 @@ locals {
     { name = "WP_S3_REMOVE_LOCAL", value = var.media_remove_local ? "1" : "0" },
   ] : []
 
+  uploads_volumes = var.efs_enabled ? [
+    { name = "wp-data", access_point_id = var.efs_access_point_id, path = "/var/www/html/wp-content/uploads" },
+  ] : []
+
   code_volumes = var.shared_code_enabled ? [
     { name = "wp-plugins", access_point_id = var.efs_plugins_access_point_id, path = "/var/www/html/wp-content/plugins" },
     { name = "wp-themes", access_point_id = var.efs_themes_access_point_id, path = "/var/www/html/wp-content/themes" },
   ] : []
 
+  efs_volumes = concat(local.uploads_volumes, local.code_volumes)
+
   efs_access_point_arns = concat(
-    [var.efs_access_point_arn],
+    var.efs_enabled ? [var.efs_access_point_arn] : [],
     var.shared_code_enabled ? [var.efs_plugins_access_point_arn, var.efs_themes_access_point_arn] : [],
   )
 }
@@ -133,8 +139,9 @@ resource "aws_iam_role" "task" {
 }
 
 resource "aws_iam_role_policy" "task_efs" {
-  name = "${var.name}-efs-access"
-  role = aws_iam_role.task.id
+  count = var.efs_enabled ? 1 : 0
+  name  = "${var.name}-efs-access"
+  role  = aws_iam_role.task.id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -272,6 +279,18 @@ resource "aws_ecs_task_definition" "wordpress" {
   execution_role_arn       = aws_iam_role.execution.arn
   task_role_arn            = aws_iam_role.task.arn
 
+  lifecycle {
+    precondition {
+      condition     = var.efs_enabled || !var.shared_code_enabled
+      error_message = "Panelden eklenti/tema kurulumu (shared_code_enabled) EFS ister; aksi halde kurulan dosyalar tek task'ta kalir ve deploy'da kaybolur."
+    }
+
+    precondition {
+      condition     = var.efs_enabled || var.media_bucket_enabled
+      error_message = "EFS kapaliyken medya S3'e offload edilmeli (media_bucket_enabled); aksi halde yuklenen dosyalar task yeniden basladiginda kaybolur."
+    }
+  }
+
   container_definitions = jsonencode([
     {
       name      = "wordpress"
@@ -299,17 +318,13 @@ resource "aws_ecs_task_definition" "wordpress" {
         for k, arn in var.wp_salt_ssm_arns : { name = "WORDPRESS_${k}", valueFrom = arn }
       ])
 
-      mountPoints = concat([{
-        sourceVolume  = "wp-data"
-        containerPath = "/var/www/html/wp-content/uploads"
-        readOnly      = false
-        }], [
-        for v in local.code_volumes : {
+      mountPoints = [
+        for v in local.efs_volumes : {
           sourceVolume  = v.name
           containerPath = v.path
           readOnly      = false
         }
-      ])
+      ]
 
       logConfiguration = {
         logDriver = "awslogs"
@@ -322,22 +337,8 @@ resource "aws_ecs_task_definition" "wordpress" {
     }
   ])
 
-  volume {
-    name = "wp-data"
-
-    efs_volume_configuration {
-      file_system_id     = var.efs_id
-      transit_encryption = "ENABLED"
-
-      authorization_config {
-        access_point_id = var.efs_access_point_id
-        iam             = "ENABLED"
-      }
-    }
-  }
-
   dynamic "volume" {
-    for_each = local.code_volumes
+    for_each = local.efs_volumes
 
     content {
       name = volume.value.name

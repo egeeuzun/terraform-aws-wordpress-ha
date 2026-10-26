@@ -225,6 +225,12 @@ variable "enable_plugin_installs" {
   default     = false
 }
 
+variable "enable_efs" {
+  description = "wp-content/uploads (ve enable_plugin_installs acikken plugins/themes) icin EFS. Kapatilirsa task'lar durumsuz olur: kod imajdan gelir, medya S3'e offload edilir. Bu yuzden kapatmak icin offload_uploads_to_s3 = true ve enable_plugin_installs = false olmali. EFS olmayan ortamlarla (Local Zone) karsilastirilabilir bir baseline icin kapali tutun. Calisan bir ortamda kapatmak EFS'i ve icindeki dosyalari siler."
+  type        = bool
+  default     = true
+}
+
 variable "media_remove_local" {
   description = "Medya S3'e offload edildikten sonra yerel (EFS) kopyasini siler. EFS'in medyayla buyumesini engeller; kapatilirsa dosya hem S3'te hem EFS'te durur."
   type        = bool
