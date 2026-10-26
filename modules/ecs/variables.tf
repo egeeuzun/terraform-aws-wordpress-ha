@@ -174,3 +174,9 @@ variable "efs_themes_access_point_arn" {
   type    = string
   default = null
 }
+
+variable "tags" {
+  description = "Veri tutan kaynaklara eklenecek etiketler (data-residency, data-class)"
+  type        = map(string)
+  default     = {}
+}

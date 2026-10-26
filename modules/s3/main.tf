@@ -2,7 +2,7 @@ resource "aws_s3_bucket" "static" {
   bucket_prefix = "${lower(replace(var.name, "_", "-"))}-static-"
   force_destroy = var.force_destroy
 
-  tags = { Name = "${var.name}-static-assets" }
+  tags = merge(var.tags, { Name = "${var.name}-static-assets" })
 }
 
 resource "aws_s3_bucket_ownership_controls" "static" {

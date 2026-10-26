@@ -67,6 +67,16 @@ locals {
     var.admin_extra_allowed_cidrs,
   )
 
+  # Residency Guard'in etiket standardi: data-residency verinin hangi ulkede
+  # kalmasi gerektigini, data-class kisisel veri icerip icermedigini soyler.
+  # WooCommerce musteri ve siparisleri ayni DB'de tuttugu icin DB, onun
+  # kopyalari (replica, snapshot, yedek), object cache ve IP iceren loglar
+  # kisisel; urun gorselleri kisisel degil.
+  residency_tags = var.data_residency != "" ? { "data-residency" = var.data_residency } : {}
+
+  personal_data_tags     = merge(local.residency_tags, { "data-class" = "personal" })
+  non_personal_data_tags = merge(local.residency_tags, { "data-class" = "non-personal" })
+
   wp_salt_keys = [
     "AUTH_KEY", "SECURE_AUTH_KEY", "LOGGED_IN_KEY", "NONCE_KEY",
     "AUTH_SALT", "SECURE_AUTH_SALT", "LOGGED_IN_SALT", "NONCE_SALT",
@@ -170,6 +180,7 @@ module "efs" {
   efs_sg_id       = module.security.efs_sg_id
 
   shared_code_dirs = var.enable_plugin_installs
+  tags             = local.personal_data_tags
 }
 
 moved {
@@ -191,6 +202,7 @@ module "rds" {
   primary_availability_zone = local.db_primary_az
   create_read_replica       = var.create_read_replica
   replica_availability_zone = local.db_replica_az
+  tags                      = local.personal_data_tags
 }
 
 module "elasticache" {
@@ -199,6 +211,7 @@ module "elasticache" {
   name            = local.name
   data_subnet_ids = module.network.data_subnet_ids
   cache_sg_id     = module.security.cache_sg_id
+  tags            = local.personal_data_tags
 }
 
 module "ecr" {
@@ -244,6 +257,8 @@ module "ecs" {
   media_bucket_arn     = module.s3.static_bucket_arn
   media_base_url       = "https://${module.cdn.cloudfront_domain_name}"
   media_remove_local   = var.media_remove_local
+
+  tags = local.personal_data_tags
 }
 
 module "s3" {
@@ -257,6 +272,7 @@ module "s3" {
   intelligent_tiering_enabled        = var.static_bucket_intelligent_tiering
 
   cors_allowed_origins = var.domain_name != "" ? ["https://${var.domain_name}"] : []
+  tags                 = local.non_personal_data_tags
 }
 
 moved {
@@ -300,6 +316,7 @@ module "backup" {
 
   name          = local.name
   resource_arns = compact([one(module.efs[*].efs_arn), module.rds.db_arn])
+  tags          = local.personal_data_tags
 }
 
 module "cicd" {

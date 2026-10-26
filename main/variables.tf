@@ -236,3 +236,9 @@ variable "media_remove_local" {
   type        = bool
   default     = true
 }
+
+variable "data_residency" {
+  description = "Veri tutan kaynaklara yazilan data-residency etiketi (ISO ulke kodu). Residency Guard bu etiketli kaynaklarin gercekte nerede durdugunu denetler; baseline'da kaynaklar Frankfurt'ta oldugu icin bulgu olarak gorunmeleri beklenir. Bos birakilirsa etiket yazilmaz."
+  type        = string
+  default     = "tr"
+}

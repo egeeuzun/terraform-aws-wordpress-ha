@@ -15,3 +15,9 @@ variable "shared_code_dirs" {
   type        = bool
   default     = false
 }
+
+variable "tags" {
+  description = "Veri tutan kaynaklara eklenecek etiketler (data-residency, data-class)"
+  type        = map(string)
+  default     = {}
+}

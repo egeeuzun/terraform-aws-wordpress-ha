@@ -49,3 +49,9 @@ variable "cors_allowed_origins" {
   type        = list(string)
   default     = []
 }
+
+variable "tags" {
+  description = "Veri tutan kaynaklara eklenecek etiketler (data-residency, data-class)"
+  type        = map(string)
+  default     = {}
+}

@@ -59,6 +59,8 @@ resource "aws_appautoscaling_policy" "cpu" {
 resource "aws_cloudwatch_log_group" "this" {
   name              = "/ecs/${var.name}-wordpress"
   retention_in_days = 30
+
+  tags = var.tags
 }
 
 resource "aws_ecs_cluster" "this" {
@@ -87,6 +89,8 @@ resource "aws_cloudwatch_log_group" "exec" {
   count             = var.enable_execute_command ? 1 : 0
   name              = "/ecs/${var.name}-exec"
   retention_in_days = 30
+
+  tags = var.tags
 }
 
 resource "aws_ecs_cluster_capacity_providers" "this" {

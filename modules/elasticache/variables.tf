@@ -19,3 +19,9 @@ variable "num_cache_nodes" {
   type    = number
   default = 2
 }
+
+variable "tags" {
+  description = "Veri tutan kaynaklara eklenecek etiketler (data-residency, data-class)"
+  type        = map(string)
+  default     = {}
+}

@@ -17,3 +17,9 @@ variable "retention_days" {
   type    = number
   default = 30
 }
+
+variable "tags" {
+  description = "Veri tutan kaynaklara eklenecek etiketler (data-residency, data-class)"
+  type        = map(string)
+  default     = {}
+}

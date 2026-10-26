@@ -9,6 +9,8 @@ resource "aws_backup_plan" "this" {
     lifecycle {
       delete_after = var.retention_days
     }
+
+    recovery_point_tags = var.tags
   }
 }
 
@@ -23,7 +25,7 @@ resource "aws_backup_selection" "this" {
 resource "aws_backup_vault" "this" {
   name = "${var.name}-backup-vault"
 
-  tags = { Name = "${var.name}-backup-vault" }
+  tags = merge(var.tags, { Name = "${var.name}-backup-vault" })
 }
 
 data "aws_iam_policy_document" "backup_assume" {
