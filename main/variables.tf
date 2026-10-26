@@ -106,6 +106,12 @@ variable "container_port" {
   default     = 80
 }
 
+variable "health_check_path" {
+  description = "ALB target group saglik kontrolu yolu. Imajdaki /health.php WordPress'i yuklemez; / ise her kontrolde DB'ye gider ve kurulum oncesi 302 doner."
+  type        = string
+  default     = "/health.php"
+}
+
 variable "alb_ingress_cidrs" {
   description = "ALB'ye 80/443 erişimi olan CIDR blokları"
   type        = list(string)

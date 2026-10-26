@@ -122,7 +122,7 @@ resource "aws_iam_role_policy" "execution_ssm" {
     Statement = [{
       Effect   = "Allow"
       Action   = ["ssm:GetParameters"]
-      Resource = [var.db_password_ssm_arn]
+      Resource = concat([var.db_password_ssm_arn], values(var.wp_salt_ssm_arns))
     }]
   })
 }
@@ -253,8 +253,13 @@ resource "aws_ecs_service" "wordpress" {
   deployment_minimum_healthy_percent = 100
   deployment_maximum_percent         = 200
 
+  # task_definition izlenir: Terraform'daki degisiklikler (secret, ortam
+  # degiskeni) ancak boyle servise ulasir. CodePipeline'in ECS deploy'u
+  # servisin o anki revizyonunu kopyalayip yalnizca imaji degistirdigi icin
+  # ikisi birbirini ezmez; sonraki apply servisi imaji ayni olan :latest
+  # revizyonuna geri alir.
   lifecycle {
-    ignore_changes = [task_definition, desired_count]
+    ignore_changes = [desired_count]
   }
 }
 
@@ -288,9 +293,11 @@ resource "aws_ecs_task_definition" "wordpress" {
         { name = "WORDPRESS_CONFIG_EXTRA", value = local.wp_config_extra }
       ], local.media_environment)
 
-      secrets = [
+      secrets = concat([
         { name = "WORDPRESS_DB_PASSWORD", valueFrom = var.db_password_ssm_arn }
-      ]
+        ], [
+        for k, arn in var.wp_salt_ssm_arns : { name = "WORDPRESS_${k}", valueFrom = arn }
+      ])
 
       mountPoints = concat([{
         sourceVolume  = "wp-data"

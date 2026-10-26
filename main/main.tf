@@ -67,6 +67,11 @@ locals {
     var.admin_extra_allowed_cidrs,
   )
 
+  wp_salt_keys = [
+    "AUTH_KEY", "SECURE_AUTH_KEY", "LOGGED_IN_KEY", "NONCE_KEY",
+    "AUTH_SALT", "SECURE_AUTH_SALT", "LOGGED_IN_SALT", "NONCE_SALT",
+  ]
+
   container_image = var.container_image != "" ? var.container_image : "${module.ecr.repository_url}:${var.image_tag}"
 }
 
@@ -81,6 +86,27 @@ resource "aws_ssm_parameter" "db_password" {
   value = random_password.db.result
 
   tags = { Name = "${local.name}-db-password" }
+}
+
+# WordPress'in oturum cerezlerini imzaladigi anahtarlar. Imajdaki wp-config.php
+# bunlari WORDPRESS_<ANAHTAR> ortam degiskenlerinden okur; verilmezse herkesin
+# bildigi sabit varsayilanlara duser ve cerezler taklit edilebilir.
+# Degistirmek tum oturumlari kapatir.
+resource "random_password" "wp_salt" {
+  for_each = toset(local.wp_salt_keys)
+
+  length           = 64
+  override_special = "!#%*()-_=+[]{}<>:?"
+}
+
+resource "aws_ssm_parameter" "wp_salt" {
+  for_each = random_password.wp_salt
+
+  name  = "/${local.name}/wp-salts/${each.key}"
+  type  = "SecureString"
+  value = each.value.result
+
+  tags = { Name = "${local.name}-wp-salt-${lower(each.key)}" }
 }
 
 module "network" {
@@ -132,6 +158,7 @@ module "alb" {
   alb_sg_id         = module.security.alb_sg_id
   container_port    = var.container_port
   certificate_arn   = var.alb_certificate_arn
+  health_check_path = var.health_check_path
 }
 
 module "efs" {
@@ -190,7 +217,8 @@ module "ecs" {
   db_name                = module.rds.db_name
   db_username            = module.rds.db_username
   db_password_ssm_arn    = aws_ssm_parameter.db_password.arn
-  memcached_endpoint     = module.elasticache.primary_node_address
+  wp_salt_ssm_arns       = { for k, p in aws_ssm_parameter.wp_salt : k => p.arn }
+  memcached_endpoint     = join(",", [for a in module.elasticache.node_addresses : "${a}:11211"])
   wp_home                = "https://${module.cdn.cloudfront_domain_name}"
   efs_id                 = module.efs.efs_id
   efs_arn                = module.efs.efs_arn

@@ -25,3 +25,8 @@ variable "certificate_arn" {
   type        = string
   default     = ""
 }
+
+variable "health_check_path" {
+  type    = string
+  default = "/health.php"
+}

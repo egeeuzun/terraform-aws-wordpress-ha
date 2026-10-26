@@ -61,8 +61,15 @@ variable "db_password_ssm_arn" {
   type        = string
 }
 
+variable "wp_salt_ssm_arns" {
+  description = "WordPress anahtar adi (AUTH_KEY, ...) -> SSM SecureString ARN'i. Konteynere WORDPRESS_<ANAHTAR> olarak verilir."
+  type        = map(string)
+  default     = {}
+}
+
 variable "memcached_endpoint" {
-  type = string
+  description = "Virgulle ayrilmis host:port listesi. Imajdaki istemci auto-discovery bilmedigi icin node'lar tek tek verilir."
+  type        = string
 }
 
 variable "wp_home" {
