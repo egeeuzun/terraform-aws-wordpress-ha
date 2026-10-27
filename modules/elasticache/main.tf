@@ -10,7 +10,7 @@ resource "aws_elasticache_cluster" "memcached" {
   security_group_ids   = [var.cache_sg_id]
   parameter_group_name = "default.memcached1.6"
 
-  tags = { Name = "${var.name}-memcached" }
+  tags = merge(var.tags, { Name = "${var.name}-memcached" })
 }
 
 resource "aws_elasticache_subnet_group" "this" {

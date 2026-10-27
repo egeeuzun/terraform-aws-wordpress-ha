@@ -21,13 +21,14 @@ resource "aws_db_instance" "primary" {
   publicly_accessible    = false
 
   backup_retention_period = 7
+  copy_tags_to_snapshot   = true
   skip_final_snapshot     = true
   deletion_protection     = false
 
-  tags = {
+  tags = merge(var.tags, {
     Name   = "${var.name}-db"
     Backup = "true"
-  }
+  })
 
   lifecycle {
     precondition {
@@ -51,7 +52,7 @@ resource "aws_db_instance" "replica" {
   publicly_accessible    = false
   skip_final_snapshot    = true
 
-  tags = { Name = "${var.name}-db-replica" }
+  tags = merge(var.tags, { Name = "${var.name}-db-replica" })
 }
 
 resource "aws_db_subnet_group" "this" {

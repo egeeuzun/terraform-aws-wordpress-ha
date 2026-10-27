@@ -61,8 +61,16 @@ variable "db_password_ssm_arn" {
   type        = string
 }
 
+variable "wp_salt_ssm_arns" {
+  description = "WordPress anahtar adi (AUTH_KEY, ...) -> SSM SecureString ARN'i. Konteynere WORDPRESS_<ANAHTAR> olarak verilir."
+  type        = map(string)
+  default     = {}
+}
+
 variable "memcached_endpoint" {
-  type = string
+  description = "Virgulle ayrilmis host:port listesi. Imajdaki istemci auto-discovery bilmedigi icin node'lar tek tek verilir. Bos = object cache kapali."
+  type        = string
+  default     = ""
 }
 
 variable "wp_home" {
@@ -71,20 +79,30 @@ variable "wp_home" {
   default     = ""
 }
 
+variable "efs_enabled" {
+  description = "uploads dizinini EFS'ten mount eder. Kapaliyken uploads konteynerin gecici diskindedir; medya S3'e offload edilmiyorsa dosyalar task'la birlikte kaybolur."
+  type        = bool
+  default     = true
+}
+
 variable "efs_id" {
-  type = string
+  type    = string
+  default = null
 }
 
 variable "efs_access_point_id" {
-  type = string
+  type    = string
+  default = null
 }
 
 variable "efs_access_point_arn" {
-  type = string
+  type    = string
+  default = null
 }
 
 variable "efs_arn" {
-  type = string
+  type    = string
+  default = null
 }
 
 variable "enable_execute_command" {
@@ -156,4 +174,16 @@ variable "efs_themes_access_point_id" {
 variable "efs_themes_access_point_arn" {
   type    = string
   default = null
+}
+
+variable "tags" {
+  description = "Veri tutan kaynaklara eklenecek etiketler (data-residency, data-class)"
+  type        = map(string)
+  default     = {}
+}
+
+variable "capacity_provider_name" {
+  description = "EC2 capacity provider adi. null = Fargate. Local Zone'larda Fargate olmadigi icin orada dolu verilir."
+  type        = string
+  default     = null
 }

@@ -67,6 +67,21 @@ locals {
     var.admin_extra_allowed_cidrs,
   )
 
+  # Residency Guard'in etiket standardi: data-residency verinin hangi ulkede
+  # kalmasi gerektigini, data-class kisisel veri icerip icermedigini soyler.
+  # WooCommerce musteri ve siparisleri ayni DB'de tuttugu icin DB, onun
+  # kopyalari (replica, snapshot, yedek), object cache ve IP iceren loglar
+  # kisisel; urun gorselleri kisisel degil.
+  residency_tags = var.data_residency != "" ? { "data-residency" = var.data_residency } : {}
+
+  personal_data_tags     = merge(local.residency_tags, { "data-class" = "personal" })
+  non_personal_data_tags = merge(local.residency_tags, { "data-class" = "non-personal" })
+
+  wp_salt_keys = [
+    "AUTH_KEY", "SECURE_AUTH_KEY", "LOGGED_IN_KEY", "NONCE_KEY",
+    "AUTH_SALT", "SECURE_AUTH_SALT", "LOGGED_IN_SALT", "NONCE_SALT",
+  ]
+
   container_image = var.container_image != "" ? var.container_image : "${module.ecr.repository_url}:${var.image_tag}"
 }
 
@@ -81,6 +96,27 @@ resource "aws_ssm_parameter" "db_password" {
   value = random_password.db.result
 
   tags = { Name = "${local.name}-db-password" }
+}
+
+# WordPress'in oturum cerezlerini imzaladigi anahtarlar. Imajdaki wp-config.php
+# bunlari WORDPRESS_<ANAHTAR> ortam degiskenlerinden okur; verilmezse herkesin
+# bildigi sabit varsayilanlara duser ve cerezler taklit edilebilir.
+# Degistirmek tum oturumlari kapatir.
+resource "random_password" "wp_salt" {
+  for_each = toset(local.wp_salt_keys)
+
+  length           = 64
+  override_special = "!#%*()-_=+[]{}<>:?"
+}
+
+resource "aws_ssm_parameter" "wp_salt" {
+  for_each = random_password.wp_salt
+
+  name  = "/${local.name}/wp-salts/${each.key}"
+  type  = "SecureString"
+  value = each.value.result
+
+  tags = { Name = "${local.name}-wp-salt-${lower(each.key)}" }
 }
 
 module "network" {
@@ -132,16 +168,24 @@ module "alb" {
   alb_sg_id         = module.security.alb_sg_id
   container_port    = var.container_port
   certificate_arn   = var.alb_certificate_arn
+  health_check_path = var.health_check_path
 }
 
 module "efs" {
   source = "../modules/efs"
+  count  = var.enable_efs ? 1 : 0
 
   name            = local.name
   data_subnet_ids = module.network.data_subnet_ids
   efs_sg_id       = module.security.efs_sg_id
 
   shared_code_dirs = var.enable_plugin_installs
+  tags             = local.personal_data_tags
+}
+
+moved {
+  from = module.efs
+  to   = module.efs[0]
 }
 
 module "rds" {
@@ -158,6 +202,7 @@ module "rds" {
   primary_availability_zone = local.db_primary_az
   create_read_replica       = var.create_read_replica
   replica_availability_zone = local.db_replica_az
+  tags                      = local.personal_data_tags
 }
 
 module "elasticache" {
@@ -166,6 +211,7 @@ module "elasticache" {
   name            = local.name
   data_subnet_ids = module.network.data_subnet_ids
   cache_sg_id     = module.security.cache_sg_id
+  tags            = local.personal_data_tags
 }
 
 module "ecr" {
@@ -190,24 +236,29 @@ module "ecs" {
   db_name                = module.rds.db_name
   db_username            = module.rds.db_username
   db_password_ssm_arn    = aws_ssm_parameter.db_password.arn
-  memcached_endpoint     = module.elasticache.primary_node_address
+  wp_salt_ssm_arns       = { for k, p in aws_ssm_parameter.wp_salt : k => p.arn }
+  memcached_endpoint     = join(",", [for a in module.elasticache.node_addresses : "${a}:11211"])
   wp_home                = "https://${module.cdn.cloudfront_domain_name}"
-  efs_id                 = module.efs.efs_id
-  efs_arn                = module.efs.efs_arn
-  efs_access_point_id    = module.efs.access_point_id
-  efs_access_point_arn   = module.efs.access_point_arn
+
+  efs_enabled          = var.enable_efs
+  efs_id               = one(module.efs[*].efs_id)
+  efs_arn              = one(module.efs[*].efs_arn)
+  efs_access_point_id  = one(module.efs[*].access_point_id)
+  efs_access_point_arn = one(module.efs[*].access_point_arn)
 
   shared_code_enabled          = var.enable_plugin_installs
-  efs_plugins_access_point_id  = module.efs.plugins_access_point_id
-  efs_plugins_access_point_arn = module.efs.plugins_access_point_arn
-  efs_themes_access_point_id   = module.efs.themes_access_point_id
-  efs_themes_access_point_arn  = module.efs.themes_access_point_arn
+  efs_plugins_access_point_id  = one(module.efs[*].plugins_access_point_id)
+  efs_plugins_access_point_arn = one(module.efs[*].plugins_access_point_arn)
+  efs_themes_access_point_id   = one(module.efs[*].themes_access_point_id)
+  efs_themes_access_point_arn  = one(module.efs[*].themes_access_point_arn)
 
   media_bucket_enabled = var.offload_uploads_to_s3
   media_bucket_name    = module.s3.static_bucket_name
   media_bucket_arn     = module.s3.static_bucket_arn
   media_base_url       = "https://${module.cdn.cloudfront_domain_name}"
   media_remove_local   = var.media_remove_local
+
+  tags = local.personal_data_tags
 }
 
 module "s3" {
@@ -221,6 +272,7 @@ module "s3" {
   intelligent_tiering_enabled        = var.static_bucket_intelligent_tiering
 
   cors_allowed_origins = var.domain_name != "" ? ["https://${var.domain_name}"] : []
+  tags                 = local.non_personal_data_tags
 }
 
 moved {
@@ -263,7 +315,8 @@ module "backup" {
   source = "../modules/backup"
 
   name          = local.name
-  resource_arns = [module.efs.efs_arn, module.rds.db_arn]
+  resource_arns = compact([one(module.efs[*].efs_arn), module.rds.db_arn])
+  tags          = local.personal_data_tags
 }
 
 module "cicd" {
@@ -354,7 +407,8 @@ output "memcached_endpoint" {
 }
 
 output "efs_id" {
-  value = module.efs.efs_id
+  description = "enable_efs kapaliyken null"
+  value       = one(module.efs[*].efs_id)
 }
 
 output "ecs_cluster_name" {

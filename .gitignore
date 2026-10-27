@@ -22,3 +22,6 @@ terraform.rc
 .DS_Store
 *.swp
 .claude/settings.local.json
+
+# Ortam basina backend ayari (bkz. backend.hcl.example)
+backend.hcl

@@ -58,3 +58,9 @@ variable "create_read_replica" {
   type        = bool
   default     = true
 }
+
+variable "tags" {
+  description = "Veri tutan kaynaklara eklenecek etiketler (data-residency, data-class)"
+  type        = map(string)
+  default     = {}
+}

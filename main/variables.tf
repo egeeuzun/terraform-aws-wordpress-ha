@@ -106,6 +106,12 @@ variable "container_port" {
   default     = 80
 }
 
+variable "health_check_path" {
+  description = "ALB target group saglik kontrolu yolu. Imajdaki /health.php WordPress'i yuklemez; / ise her kontrolde DB'ye gider ve kurulum oncesi 302 doner."
+  type        = string
+  default     = "/health.php"
+}
+
 variable "alb_ingress_cidrs" {
   description = "ALB'ye 80/443 erişimi olan CIDR blokları"
   type        = list(string)
@@ -219,8 +225,20 @@ variable "enable_plugin_installs" {
   default     = false
 }
 
+variable "enable_efs" {
+  description = "wp-content/uploads (ve enable_plugin_installs acikken plugins/themes) icin EFS. Kapatilirsa task'lar durumsuz olur: kod imajdan gelir, medya S3'e offload edilir. Bu yuzden kapatmak icin offload_uploads_to_s3 = true ve enable_plugin_installs = false olmali. EFS olmayan ortamlarla (Local Zone) karsilastirilabilir bir baseline icin kapali tutun. Calisan bir ortamda kapatmak EFS'i ve icindeki dosyalari siler."
+  type        = bool
+  default     = true
+}
+
 variable "media_remove_local" {
   description = "Medya S3'e offload edildikten sonra yerel (EFS) kopyasini siler. EFS'in medyayla buyumesini engeller; kapatilirsa dosya hem S3'te hem EFS'te durur."
   type        = bool
   default     = true
+}
+
+variable "data_residency" {
+  description = "Veri tutan kaynaklara yazilan data-residency etiketi (ISO ulke kodu). Residency Guard bu etiketli kaynaklarin gercekte nerede durdugunu denetler; baseline'da kaynaklar Frankfurt'ta oldugu icin bulgu olarak gorunmeleri beklenir. Bos birakilirsa etiket yazilmaz."
+  type        = string
+  default     = "tr"
 }

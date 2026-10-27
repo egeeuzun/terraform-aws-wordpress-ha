@@ -1,0 +1,148 @@
+variable "project" {
+  type = string
+}
+
+variable "env" {
+  type = string
+}
+
+variable "region" {
+  description = "Local Zone'un parent region'i"
+  type        = string
+  default     = "eu-central-1"
+}
+
+variable "local_zone" {
+  type    = string
+  default = "eu-central-1-ist-1a"
+}
+
+variable "vpc_cidr" {
+  description = "Frankfurt baseline'indan (10.0.0.0/16) farkli; ileride iki VPC baglanabilsin."
+  type        = string
+  default     = "10.1.0.0/16"
+}
+
+variable "nat_in_local_zone" {
+  description = "NAT gateway'i Local Zone'a koyar. Kapaliyken (varsayilan) LZ'nin dis trafigi parent AZ'deki NAT'tan, yani Frankfurt'tan cikar."
+  type        = bool
+  default     = false
+}
+
+variable "ecs_instance_type" {
+  type    = string
+  default = "m7i.large"
+}
+
+variable "ecs_instances_min" {
+  type    = number
+  default = 1
+}
+
+variable "ecs_instances_max" {
+  type    = number
+  default = 4
+}
+
+variable "db_instance_type" {
+  type    = string
+  default = "m7i.large"
+}
+
+variable "db_data_volume_size" {
+  type    = number
+  default = 20
+}
+
+variable "db_name" {
+  type    = string
+  default = "wordpress"
+}
+
+variable "db_username" {
+  type    = string
+  default = "wp_admin"
+}
+
+variable "container_image" {
+  description = "ECR disi bir imajla calismak icin override. Bos birakilirsa ecr modulunun urettigi repo ve image_tag kullanilir."
+  type        = string
+  default     = ""
+}
+
+variable "image_tag" {
+  type    = string
+  default = "latest"
+}
+
+variable "container_port" {
+  type    = number
+  default = 80
+}
+
+variable "health_check_path" {
+  type    = string
+  default = "/health.php"
+}
+
+variable "desired_count" {
+  type    = number
+  default = 2
+}
+
+variable "enable_ecs_exec" {
+  type    = bool
+  default = true
+}
+
+variable "enable_waf" {
+  type    = bool
+  default = true
+}
+
+variable "restrict_alb_to_cloudfront" {
+  type    = bool
+  default = true
+}
+
+variable "alb_ingress_cidrs" {
+  description = "restrict_alb_to_cloudfront kapaliyken ALB'ye erisebilecek CIDR'ler"
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
+
+variable "admin_extra_allowed_cidrs" {
+  description = "wp-admin'e WAF uzerinden erisebilecek CIDR'ler. Bos = kisit yok."
+  type        = list(string)
+  default     = []
+}
+
+variable "static_bucket_force_destroy" {
+  type    = bool
+  default = true
+}
+
+variable "data_residency" {
+  type    = string
+  default = "tr"
+}
+
+variable "enable_cicd" {
+  type    = bool
+  default = false
+}
+
+variable "codestar_connection_arn" {
+  type    = string
+  default = ""
+}
+
+variable "repository_id" {
+  type    = string
+  default = ""
+}
+
+variable "branch" {
+  type    = string
+  default = "main"
+}

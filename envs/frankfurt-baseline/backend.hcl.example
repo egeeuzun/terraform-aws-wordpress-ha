@@ -1,0 +1,3 @@
+# backend.hcl olarak kopyalayin. Bucket adi bootstrap ciktisindaki state_bucket.
+bucket = "lz-woo-tfstate-xxxxxxxx"
+region = "eu-central-1"

@@ -71,10 +71,10 @@ resource "aws_efs_file_system" "this" {
     transition_to_ia = "AFTER_30_DAYS"
   }
 
-  tags = {
+  tags = merge(var.tags, {
     Name   = "${var.name}-efs"
     Backup = "true"
-  }
+  })
 }
 
 resource "aws_efs_mount_target" "this" {
