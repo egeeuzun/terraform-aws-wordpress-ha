@@ -1,0 +1,12 @@
+# terraform.tfvars olarak kopyalayin (*.tfvars git'e girmez).
+
+admin_extra_allowed_cidrs = ["203.0.113.4/32"]
+
+# Imaj build/deploy hatti (wordpress-shop-demo reposu)
+enable_cicd             = true
+codestar_connection_arn = "arn:aws:codestar-connections:eu-central-1:ACCOUNT_ID:connection/CONNECTION_ID"
+repository_id           = "ORG/wordpress-shop-demo"
+branch                  = "main"
+
+# Istanbul'da NAT gateway destegi dogrulanirsa:
+# nat_in_local_zone = true

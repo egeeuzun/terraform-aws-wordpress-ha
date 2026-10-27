@@ -39,6 +39,8 @@ against.
 
 ## Target: the Istanbul Local Zone
 
+This is `envs/istanbul-lz`.
+
 ```
 Customer in Türkiye
    │
@@ -48,16 +50,20 @@ CloudFront + WAF            (CloudFront has an edge in Istanbul)
    ▼
 Load balancer               ┐
    │                        │
-   ▼                        │
-WordPress on ECS, EC2       │  Istanbul Local Zone
-   ├── MariaDB on EC2 + EBS │  (eu-central-1-ist-1a)
-   ├── Product images in S3 │
-   └── Backups as EBS       │
-       snapshots            ┘
+   ▼                        │  Istanbul Local Zone
+WordPress on ECS, EC2       │  (eu-central-1-ist-1a)
+   └── MariaDB on EC2 + EBS │
+       └── nightly EBS      │
+           snapshots        ┘
 
-Frankfurt keeps only the control side: Terraform state, the container
-registry (ECR), secrets (SSM), and the AWS management APIs.
+Still in Frankfurt: product images (S3), logs (CloudWatch), the NAT
+gateway the zone uses to reach the internet, the container registry
+(ECR), secrets (SSM), Terraform state and the AWS management APIs.
 ```
+
+The first version is deliberately simple. Some things that do not belong in
+Frankfurt are still there (see [What is still in Frankfurt](#what-is-still-in-frankfurt)).
+Finding them is the next step of the project.
 
 ### What changes, and why
 
@@ -65,10 +71,10 @@ registry (ECR), secrets (SSM), and the AWS management APIs.
 | --- | --- | --- | --- |
 | Servers for WordPress | ECS on **Fargate** | ECS on **EC2** instances (C7i / M7i) | Fargate does not run in Local Zones. We now patch and replace the servers ourselves. |
 | Database | **RDS** MariaDB | MariaDB on an **EC2** instance with an encrypted EBS disk | RDS is not offered there. Backups, updates and monitoring become our job. |
-| Database backups | RDS backups + AWS Backup | **EBS snapshots** kept in the zone, plus a `mysqldump` to S3 in the zone | The backup copy must stay in Istanbul too. |
-| Product images | S3 bucket in Frankfurt | S3 **One Zone-IA** bucket in the zone | It is the S3 storage class the zone supports. |
+| Database backups | RDS backups + AWS Backup | Nightly **EBS snapshots** stored in the zone itself, 7 kept | The backup copy must stay in Istanbul too. A normal snapshot would be stored in Frankfurt. |
+| Product images | S3 bucket in Frankfurt | Still the S3 bucket in Frankfurt (for now) | S3 in the zone is a different kind of bucket (a "directory bucket"). We have not checked yet that the media plugin and CloudFront work with it. Product photos are not personal data. |
 | Shared files (EFS) | Not used | Not used | Code is in the image, images are in S3. We removed EFS in Frankfurt first, so both setups look the same. |
-| Cache | ElastiCache | Memcached on EC2 in the zone, or no cache | ElastiCache is not offered there, and the cache holds customer data. |
+| Cache | ElastiCache | No cache (for now) | ElastiCache is not offered there, and the cache holds customer data. The store works without it, a bit slower. |
 | Load balancer | ALB across 2 AZs | A separate ALB in the zone's subnets | An ALB cannot mix normal AZ subnets with Local Zone subnets. |
 | Firewall (WAF) | On CloudFront | Still on CloudFront | A Local Zone ALB cannot have a WAF attached. Ours was already on CloudFront. |
 
@@ -85,6 +91,15 @@ registry (ECR), secrets (SSM), and the AWS management APIs.
 
 What we get: the database, its backups and the servers that handle customer
 data are in Türkiye, and we can show it.
+
+### What is still in Frankfurt
+
+| What | Personal data? | Plan |
+| --- | --- | --- |
+| Logs (CloudWatch Logs) | Yes: visitor IP addresses | Found by Residency Guard, then fixed (keep in the zone, or mask IPs) |
+| NAT gateway | Passes through: everything the zone sends to the internet or to AWS APIs | Move it into the zone if Istanbul supports NAT gateways (`nat_in_local_zone = true`) |
+| Product images (S3) | No | Move to a bucket in the zone once the plugin works with it |
+| Container registry, secrets, Terraform state | No | Stay in Frankfurt |
 
 ### "Is the data really in Türkiye?"
 
@@ -109,13 +124,13 @@ Frankfurt setup shows up as "everything outside Türkiye" in the first report.
 | 1 | Frankfurt setup in Terraform (`envs/frankfurt-baseline`) | Code ready, not yet measured |
 | 2 | Demo store with fake data (wordpress-shop-demo) | Done |
 | 3 | "Hybrid" period: app in Frankfurt, database on-premises over a VPN | Planned |
-| 4 | Move to the Istanbul Local Zone (`envs/istanbul-lz`) | Planned |
+| 4 | Move to the Istanbul Local Zone (`envs/istanbul-lz`) | First version written, not yet applied |
 | 5–6 | Residency Guard: check, fix, check again | Planned |
 | 7 | CI checks that block a database outside Türkiye | Planned |
 | 8 | Compare speed, cost and effort for each step | Planned |
 
-The Local Zone setup described above is the target. Its Terraform code
-(`envs/istanbul-lz`) does not exist yet.
+Steps 1 and 4 have been checked with `terraform validate` only. Neither has
+been applied to an AWS account yet.
 
 ## Repository layout
 
@@ -123,7 +138,10 @@ The Local Zone setup described above is the target. Its Terraform code
 | --- | --- |
 | `bootstrap/` | Run once per account: S3 bucket for Terraform state and a monthly AWS Budgets alarm. Local state. |
 | `envs/frankfurt-baseline/` | Phase 1 baseline: Frankfurt, Fargate, RDS. Stateless tasks (no EFS, media on S3). |
-| `main/` | The root module every environment calls. |
+| `envs/istanbul-lz/` | Phase 4: Istanbul Local Zone, ECS on EC2, MariaDB on EC2. |
+| `main/` | Root module for the Frankfurt setup. |
+| `lz/` | Root module for the Local Zone setup. |
+| `docs/adr/` | Decision records (why EC2 instead of Fargate, why MariaDB on EC2). |
 | `modules/` | The building blocks below. |
 | `docs/00-envanter.md` | Inventory of what this repo and the image deploy (in Turkish). |
 
@@ -132,11 +150,14 @@ The Local Zone setup described above is the target. Its Terraform code
 | Module | Purpose |
 | --- | --- |
 | `network` | VPC with public / app / data subnets across `az_count` AZs, NAT gateway per AZ |
+| `network-lz` | VPC with public / app / data subnets in a Local Zone, NAT in the parent AZ or the zone |
 | `security` | Security groups for each tier |
 | `alb` | Application Load Balancer, target group, health checks |
-| `ecs` | Fargate service, task definition, autoscaling, ECS Exec |
+| `ecs` | ECS service on Fargate or an EC2 capacity provider, task definition, autoscaling, ECS Exec |
+| `ecs-ec2-capacity` | Auto Scaling group of ECS instances and its capacity provider (for Local Zones) |
 | `ecr` | Container registry for the WordPress image |
 | `rds` | MariaDB with optional read replica and Multi-AZ standby |
+| `db-ec2-mariadb` | MariaDB on one EC2 instance, data on its own EBS disk, local snapshots with DLM |
 | `elasticache` | Object cache |
 | `efs` | Optional shared `wp-content/uploads` (and `plugins`/`themes`) across tasks |
 | `s3` | Static and media bucket with versioning and lifecycle rules |
@@ -171,6 +192,20 @@ terraform apply
 State is locked with S3's own lock file (`use_lockfile`), so there is no
 DynamoDB table. Every resource gets the default tags `project=lz-woo`,
 `phase`, `environment` and `managed-by`.
+
+**2b. The Istanbul Local Zone environment**
+
+Same steps in `envs/istanbul-lz` (its own `backend.hcl` and `terraform.tfvars`).
+Terraform opts the account into the Local Zone for you. It runs next to the
+baseline in the same account: resource names, state and VPC ranges differ.
+
+The servers take a few minutes after `apply`: ECS adds EC2 instances for the
+tasks, and the database instance installs MariaDB on first boot. To look at
+the database server:
+
+```bash
+aws ssm start-session --target $(terraform output -raw db_instance_id)
+```
 
 **3. Fill the store**
 
