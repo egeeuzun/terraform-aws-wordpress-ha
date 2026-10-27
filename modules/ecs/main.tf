@@ -1,4 +1,8 @@
 locals {
+  # null = Fargate. Dolu ise servis bu EC2 capacity provider'inda calisir
+  # (Local Zone'da Fargate yok).
+  on_ec2 = var.capacity_provider_name != null
+
   wp_config_extra = <<-PHP
     if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
         $_SERVER['HTTPS'] = 'on';
@@ -95,10 +99,10 @@ resource "aws_cloudwatch_log_group" "exec" {
 
 resource "aws_ecs_cluster_capacity_providers" "this" {
   cluster_name       = aws_ecs_cluster.this.name
-  capacity_providers = ["FARGATE", "FARGATE_SPOT"]
+  capacity_providers = local.on_ec2 ? [var.capacity_provider_name] : ["FARGATE", "FARGATE_SPOT"]
 
   default_capacity_provider_strategy {
-    capacity_provider = "FARGATE"
+    capacity_provider = local.on_ec2 ? var.capacity_provider_name : "FARGATE"
     weight            = 1
   }
 }
@@ -242,8 +246,26 @@ resource "aws_ecs_service" "wordpress" {
   cluster                = aws_ecs_cluster.this.id
   task_definition        = aws_ecs_task_definition.wordpress.arn
   desired_count          = var.desired_count
-  launch_type            = "FARGATE"
+  launch_type            = local.on_ec2 ? null : "FARGATE"
   enable_execute_command = var.enable_execute_command
+
+  dynamic "capacity_provider_strategy" {
+    for_each = local.on_ec2 ? [1] : []
+    content {
+      capacity_provider = var.capacity_provider_name
+      weight            = 1
+    }
+  }
+
+  # EC2'de task'lar once farkli instance'lara dagitilir; tek instance
+  # dusse bile servis ayakta kalir.
+  dynamic "ordered_placement_strategy" {
+    for_each = local.on_ec2 ? [1] : []
+    content {
+      type  = "spread"
+      field = "instanceId"
+    }
+  }
 
   network_configuration {
     subnets          = var.app_subnet_ids
@@ -251,7 +273,8 @@ resource "aws_ecs_service" "wordpress" {
     assign_public_ip = false
   }
 
-  availability_zone_rebalancing = "ENABLED"
+  # Local Zone tek lokasyon; dengelenecek ikinci bir zone yok.
+  availability_zone_rebalancing = local.on_ec2 ? "DISABLED" : "ENABLED"
 
   load_balancer {
     target_group_arn = var.target_group_arn
@@ -272,11 +295,13 @@ resource "aws_ecs_service" "wordpress" {
   lifecycle {
     ignore_changes = [desired_count]
   }
+
+  depends_on = [aws_ecs_cluster_capacity_providers.this]
 }
 
 resource "aws_ecs_task_definition" "wordpress" {
   family                   = "${var.name}-wordpress"
-  requires_compatibilities = ["FARGATE"]
+  requires_compatibilities = [local.on_ec2 ? "EC2" : "FARGATE"]
   network_mode             = "awsvpc"
   cpu                      = var.cpu
   memory                   = var.memory

@@ -68,8 +68,9 @@ variable "wp_salt_ssm_arns" {
 }
 
 variable "memcached_endpoint" {
-  description = "Virgulle ayrilmis host:port listesi. Imajdaki istemci auto-discovery bilmedigi icin node'lar tek tek verilir."
+  description = "Virgulle ayrilmis host:port listesi. Imajdaki istemci auto-discovery bilmedigi icin node'lar tek tek verilir. Bos = object cache kapali."
   type        = string
+  default     = ""
 }
 
 variable "wp_home" {
@@ -179,4 +180,10 @@ variable "tags" {
   description = "Veri tutan kaynaklara eklenecek etiketler (data-residency, data-class)"
   type        = map(string)
   default     = {}
+}
+
+variable "capacity_provider_name" {
+  description = "EC2 capacity provider adi. null = Fargate. Local Zone'larda Fargate olmadigi icin orada dolu verilir."
+  type        = string
+  default     = null
 }
