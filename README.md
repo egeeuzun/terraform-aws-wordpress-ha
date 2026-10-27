@@ -1,17 +1,123 @@
 # terraform-aws-wordpress-ha
 
-Terraform configuration for a highly available WordPress deployment on AWS.
-It runs the [wordpress-shop-demo](https://github.com/egeeuzun/wordpress-shop-demo)
-image (the *Yerel Market* WooCommerce store) and is the starting point of a
-project that moves the store from Frankfurt to the AWS Istanbul Local Zone.
+Terraform code for a WooCommerce store on AWS, and a project to move it from
+**Frankfurt** to the **AWS Istanbul Local Zone** so that customer data stays in
+Türkiye.
+
+The store is *Yerel Market*, a fake grocery shop from
+[wordpress-shop-demo](https://github.com/egeeuzun/wordpress-shop-demo). Its
+customers, orders and national ID numbers are all made up, but they look like
+the real thing, so we can track where personal data ends up.
+
+## The idea in one minute
+
+A Local Zone is a small piece of an AWS region placed in another city. The
+Istanbul Local Zone (`eu-central-1-ist-1a`) belongs to the Frankfurt region, but
+its servers and disks are physically in Istanbul.
+
+So the plan is simple: run the store and its database on servers in Istanbul,
+and keep Frankfurt only for the things that are not customer data.
+
+The catch: the Local Zone offers only some AWS services. There are EC2 servers,
+EBS disks, S3 (One Zone-IA), load balancers and ECS. There is **no** RDS,
+Fargate, EFS or ElastiCache. Each missing service needs a replacement that we
+run ourselves.
+
+## Today: everything in Frankfurt
 
 ```
-CloudFront (+ WAF)  →  ALB  →  ECS Fargate (WordPress)  →  RDS MariaDB (+ read replica)
-       │                                  │                 ElastiCache
-       └── S3 (static / media, OAC)       └── EFS (optional: uploads, plugins, themes)
+Customer ──► CloudFront + WAF ──► Load balancer ──► WordPress on ECS Fargate (2 AZs)
+                  │                                   ├── RDS MariaDB (managed database)
+                  │                                   └── ElastiCache (cache)
+                  └── /wp-content/uploads ──► S3 bucket (product images)
+
+All of it in Frankfurt (eu-central-1).
 ```
 
-## Layout
+This is `envs/frankfurt-baseline`. It is the "before" picture we measure
+against.
+
+## Target: the Istanbul Local Zone
+
+```
+Customer in Türkiye
+   │
+   ▼
+CloudFront + WAF            (CloudFront has an edge in Istanbul)
+   │
+   ▼
+Load balancer               ┐
+   │                        │
+   ▼                        │
+WordPress on ECS, EC2       │  Istanbul Local Zone
+   ├── MariaDB on EC2 + EBS │  (eu-central-1-ist-1a)
+   ├── Product images in S3 │
+   └── Backups as EBS       │
+       snapshots            ┘
+
+Frankfurt keeps only the control side: Terraform state, the container
+registry (ECR), secrets (SSM), and the AWS management APIs.
+```
+
+### What changes, and why
+
+| Part | Frankfurt today | Istanbul Local Zone | Why |
+| --- | --- | --- | --- |
+| Servers for WordPress | ECS on **Fargate** | ECS on **EC2** instances (C7i / M7i) | Fargate does not run in Local Zones. We now patch and replace the servers ourselves. |
+| Database | **RDS** MariaDB | MariaDB on an **EC2** instance with an encrypted EBS disk | RDS is not offered there. Backups, updates and monitoring become our job. |
+| Database backups | RDS backups + AWS Backup | **EBS snapshots** kept in the zone, plus a `mysqldump` to S3 in the zone | The backup copy must stay in Istanbul too. |
+| Product images | S3 bucket in Frankfurt | S3 **One Zone-IA** bucket in the zone | It is the S3 storage class the zone supports. |
+| Shared files (EFS) | Not used | Not used | Code is in the image, images are in S3. We removed EFS in Frankfurt first, so both setups look the same. |
+| Cache | ElastiCache | Memcached on EC2 in the zone, or no cache | ElastiCache is not offered there, and the cache holds customer data. |
+| Load balancer | ALB across 2 AZs | A separate ALB in the zone's subnets | An ALB cannot mix normal AZ subnets with Local Zone subnets. |
+| Firewall (WAF) | On CloudFront | Still on CloudFront | A Local Zone ALB cannot have a WAF attached. Ours was already on CloudFront. |
+
+### What we give up
+
+- **One location instead of two or three.** The Local Zone is a single site. If
+  it goes down, the store goes down. The database is a single instance. We say
+  this openly; disaster recovery options are written up as a separate decision.
+- **More work.** No managed database, no Fargate. Servers need updates, the
+  database needs backups that we test.
+- **Not every page gets faster.** CloudFront already serves cached pages from
+  Istanbul. The gain is on pages that cannot be cached: cart, checkout, "my
+  account" and wp-admin.
+
+What we get: the database, its backups and the servers that handle customer
+data are in Türkiye, and we can show it.
+
+### "Is the data really in Türkiye?"
+
+Moving the servers is not enough. Data leaks out in less obvious ways: logs sent
+to CloudWatch in Frankfurt, old database snapshots left behind, plugins that call
+outside services (Gravatar, Google Fonts, Akismet).
+
+So the first Local Zone version is deliberately done the simple, naive way.
+Then a checking tool, **Residency Guard**, lists every resource tagged
+`data-residency=tr` and reports where it really is. We fix what it finds and run
+it again. Every data resource in this repo already carries these tags, so the
+Frankfurt setup shows up as "everything outside Türkiye" in the first report.
+
+> This is not legal advice and does not claim KVKK compliance. The claim is
+> narrower: the resources that hold personal data are in Türkiye, and an
+> automatic check proves it.
+
+## Project status
+
+| Step | What | Status |
+| --- | --- | --- |
+| 1 | Frankfurt setup in Terraform (`envs/frankfurt-baseline`) | Code ready, not yet measured |
+| 2 | Demo store with fake data (wordpress-shop-demo) | Done |
+| 3 | "Hybrid" period: app in Frankfurt, database on-premises over a VPN | Planned |
+| 4 | Move to the Istanbul Local Zone (`envs/istanbul-lz`) | Planned |
+| 5–6 | Residency Guard: check, fix, check again | Planned |
+| 7 | CI checks that block a database outside Türkiye | Planned |
+| 8 | Compare speed, cost and effort for each step | Planned |
+
+The Local Zone setup described above is the target. Its Terraform code
+(`envs/istanbul-lz`) does not exist yet.
+
+## Repository layout
 
 | Path | What it is |
 | --- | --- |
