@@ -69,6 +69,7 @@ Task'a verilen ortam değişkenleri: `WORDPRESS_DB_HOST/NAME/USER`,
 - Eklenti sürümleri sabit değil: Dockerfile build anında `latest-stable` indirir.
 - Seed kiti `/usr/src/shop-seed/` altında; ECS Exec ile çalışır, dışarıya
   istek atmaz.
+- `tr_TR` dil paketleri imajda; seed kiti site dilini Türkçe yapar.
 
 ## Kişisel veri nerede
 
@@ -107,10 +108,9 @@ kişisel veri değil), ECR imajı (kişisel veri yok).
 
 ## Açık konular
 
-- **Dil paketleri kalıcı değil.** `tr_TR` çekirdek/WooCommerce/Storefront
-  çevirileri imajda yok; ECS'te `wp language` ile kurulursa task'ın geçici
-  diskine yazılır ve task yenilenince kaybolur. İmaja gömülmeli
-  (wordpress-shop-demo).
+- ~~**Dil paketleri kalıcı değil.**~~ Çözüldü: `tr_TR` çekirdek, WooCommerce
+  ve Storefront çevirileri artık imaja gömülü (wordpress-shop-demo,
+  `docker/install-translations.sh`); çalışma anında wordpress.org'a gidilmiyor.
 - **Eklenti sürümleri sabit değil.** Aynı commit'ten farklı günlerde farklı
   WooCommerce sürümü çıkabilir; ölçüm turları arasında karşılaştırmayı bozar.
 - **Read replica boşta.** Maliyet var, okuma yükü yok. Ölçümlerde ya
