@@ -90,6 +90,12 @@ variable "desired_count" {
   default = 2
 }
 
+variable "enable_auto_seed" {
+  description = "Imaj acilista WordPress'i kurar ve seed'i calistirir; elle wp core install / seed gerekmez."
+  type        = bool
+  default     = true
+}
+
 variable "enable_ecs_exec" {
   type    = bool
   default = true
