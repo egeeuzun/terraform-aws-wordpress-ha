@@ -59,3 +59,8 @@ output "static_bucket_name" {
 output "db_password_ssm_parameter" {
   value = aws_ssm_parameter.db_password.name
 }
+
+output "admin_password_ssm_name" {
+  description = "WordPress yonetici parolasi: aws ssm get-parameter --with-decryption --query Parameter.Value --output text --name <bu deger>"
+  value       = aws_ssm_parameter.admin_password.name
+}

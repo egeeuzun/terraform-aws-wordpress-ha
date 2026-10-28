@@ -37,3 +37,7 @@ output "ecr_repository_url" {
 output "static_bucket_name" {
   value = module.lz.static_bucket_name
 }
+
+output "admin_password_ssm_name" {
+  value = module.lz.admin_password_ssm_name
+}

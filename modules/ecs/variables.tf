@@ -187,3 +187,25 @@ variable "capacity_provider_name" {
   type        = string
   default     = null
 }
+
+variable "auto_seed" {
+  description = "Imaj acilista WordPress'i kursun ve seed'i calistirsin (SHOP_AUTO_SEED=1). Seed kiti degismedikce tekrar calismaz."
+  type        = bool
+  default     = false
+}
+
+variable "admin_username" {
+  type    = string
+  default = "admin"
+}
+
+variable "admin_email" {
+  type    = string
+  default = "demo@example.com"
+}
+
+variable "admin_password_ssm_arn" {
+  description = "auto_seed acikken yonetici parolasini tutan SSM SecureString parametresinin ARN'i"
+  type        = string
+  default     = ""
+}

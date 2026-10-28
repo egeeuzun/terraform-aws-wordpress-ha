@@ -32,7 +32,7 @@ resource "aws_cloudfront_distribution" "this" {
   enabled         = true
   is_ipv6_enabled = true
   comment         = "${var.name} WordPress dagitimi"
-  price_class     = "PriceClass_100"
+  price_class     = var.price_class
   web_acl_id      = var.enable_waf ? aws_wafv2_web_acl.this[0].arn : null
   aliases         = var.domain_name != "" && var.acm_certificate_arn != "" ? [var.domain_name] : []
 

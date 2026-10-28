@@ -87,6 +87,21 @@ resource "aws_ssm_parameter" "wp_salt" {
   tags = { Name = "${local.name}-wp-salt-${lower(each.key)}" }
 }
 
+# WordPress yonetici parolasi; imaj ilk acilista bununla kurar (auto_seed).
+# Okumak icin: terraform output -raw admin_password_ssm_name
+resource "random_password" "admin" {
+  length  = 24
+  special = false
+}
+
+resource "aws_ssm_parameter" "admin_password" {
+  name  = "/${local.name}/wp-admin-password"
+  type  = "SecureString"
+  value = random_password.admin.result
+
+  tags = { Name = "${local.name}-wp-admin-password" }
+}
+
 # --- Ag ----------------------------------------------------------------------
 
 module "network" {
@@ -187,6 +202,9 @@ module "ecs" {
   db_password_ssm_arn = aws_ssm_parameter.db_password.arn
   wp_salt_ssm_arns    = { for k, p in aws_ssm_parameter.wp_salt : k => p.arn }
   wp_home             = "https://${module.cdn.cloudfront_domain_name}"
+
+  auto_seed              = var.enable_auto_seed
+  admin_password_ssm_arn = aws_ssm_parameter.admin_password.arn
 
   efs_enabled = false
 

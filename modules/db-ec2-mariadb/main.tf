@@ -48,10 +48,17 @@ locals {
 
     DATA_DEV="${local.data_device}"
 
-    apt-get update
-    apt-get install -y mariadb-server openssl
+    # Ilk acilista NAT/rota henuz hazir olmayabilir; paketler kurulana dek
+    # tekrar dene. Subnet'te IPv6 yok, apt AAAA adreslerle vakit kaybetmesin.
+    APT="apt-get -o Acquire::ForceIPv4=true"
+    for _ in $(seq 1 30); do
+      $APT update || true
+      $APT install -y mariadb-server openssl && break
+      sleep 10
+    done
+    command -v mariadb-install-db
     snap install aws-cli --classic
-    systemctl stop mariadb
+    systemctl stop mariadb || true
 
     # Veri diskini bekle (attachment instance'tan sonra olusur)
     for _ in $(seq 1 60); do
@@ -60,23 +67,31 @@ locals {
     done
     [ -e "$DATA_DEV" ]
 
-    # Bos disk: bicimlendir ve paketin olusturdugu bos veri dizinini tasi.
-    # Dolu disk (instance degisimi): oldugu gibi kullan.
     if ! blkid "$DATA_DEV"; then
       mkfs.ext4 -L mariadb-data "$DATA_DEV"
     fi
-    mkdir -p /mnt/mariadb-data
-    mount "$DATA_DEV" /mnt/mariadb-data
-    if [ ! -d /mnt/mariadb-data/mysql ]; then
-      cp -a /var/lib/mysql/. /mnt/mariadb-data/
-    fi
-    umount /mnt/mariadb-data
-
     DATA_UUID=$(blkid -s UUID -o value "$DATA_DEV")
     grep -q "$DATA_UUID" /etc/fstab \
       || echo "UUID=$DATA_UUID /var/lib/mysql ext4 defaults,nofail,noatime 0 2" >> /etc/fstab
+    mkdir -p /var/lib/mysql
     mount /var/lib/mysql
+    # ext4'un bos lost+found dizini MariaDB'de veritabani gibi gorunur
+    rmdir /var/lib/mysql/lost+found 2>/dev/null || true
     chown -R mysql:mysql /var/lib/mysql
+
+    # Bos disk: veri dizinini olustur. Dolu disk (instance degisimi): oldugu
+    # gibi kullan. mysql dizini olmayan bir veri dizini gecerli bir veritabani
+    # degildir (yarim kalmis bir denemenin kalintisi), temizlenir.
+    #
+    # Root olarak calisan mariadbd burada mysql kullanicisina gecemiyor
+    # ("Cannot change uid/gid", ayni sebeple paketin kendi kurulumu da veri
+    # dizinini olusturamiyor). Bu yuzden dogrudan mysql kullanicisi olarak,
+    # cloud-init'in disinda systemd uzerinden calistirilir.
+    if [ ! -d /var/lib/mysql/mysql ]; then
+      find /var/lib/mysql -mindepth 1 -delete
+      systemd-run --wait --pipe --collect --uid=mysql --gid=mysql \
+        mariadb-install-db --datadir=/var/lib/mysql --skip-test-db
+    fi
 
     # RDS gibi yalnizca TLS'li baglanti. Imaj sunucu sertifikasini dogrulamiyor,
     # bu yuzden self-signed sertifika yeterli.

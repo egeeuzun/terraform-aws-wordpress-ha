@@ -29,6 +29,18 @@ locals {
 
   efs_volumes = concat(local.uploads_volumes, local.code_volumes)
 
+  # Imaj acilista WordPress'i kurar ve seed'i calistirir (wordpress-shop-demo,
+  # docker/auto-seed.php); yalnizca bir task calistirir, digerleri atlar.
+  auto_seed_environment = var.auto_seed ? [
+    { name = "SHOP_AUTO_SEED", value = "1" },
+    { name = "WORDPRESS_ADMIN_USER", value = var.admin_username },
+    { name = "WORDPRESS_ADMIN_EMAIL", value = var.admin_email },
+  ] : []
+
+  auto_seed_secrets = var.auto_seed ? [
+    { name = "WORDPRESS_ADMIN_PASSWORD", valueFrom = var.admin_password_ssm_arn },
+  ] : []
+
   efs_access_point_arns = concat(
     var.efs_enabled ? [var.efs_access_point_arn] : [],
     var.shared_code_enabled ? [var.efs_plugins_access_point_arn, var.efs_themes_access_point_arn] : [],
@@ -136,7 +148,7 @@ resource "aws_iam_role_policy" "execution_ssm" {
     Statement = [{
       Effect   = "Allow"
       Action   = ["ssm:GetParameters"]
-      Resource = concat([var.db_password_ssm_arn], values(var.wp_salt_ssm_arns))
+      Resource = concat([var.db_password_ssm_arn], values(var.wp_salt_ssm_arns), var.auto_seed ? [var.admin_password_ssm_arn] : [])
     }]
   })
 }
@@ -315,6 +327,11 @@ resource "aws_ecs_task_definition" "wordpress" {
     }
 
     precondition {
+      condition     = !var.auto_seed || var.admin_password_ssm_arn != ""
+      error_message = "auto_seed yonetici parolasini (admin_password_ssm_arn) ister."
+    }
+
+    precondition {
       condition     = var.efs_enabled || var.media_bucket_enabled
       error_message = "EFS kapaliyken medya S3'e offload edilmeli (media_bucket_enabled); aksi halde yuklenen dosyalar task yeniden basladiginda kaybolur."
     }
@@ -339,13 +356,13 @@ resource "aws_ecs_task_definition" "wordpress" {
         { name = "WP_HOME", value = var.wp_home },
         { name = "WORDPRESS_DISALLOW_FILE_MODS", value = var.shared_code_enabled ? "0" : "1" },
         { name = "WORDPRESS_CONFIG_EXTRA", value = local.wp_config_extra }
-      ], local.media_environment)
+      ], local.media_environment, local.auto_seed_environment)
 
       secrets = concat([
         { name = "WORDPRESS_DB_PASSWORD", valueFrom = var.db_password_ssm_arn }
         ], [
         for k, arn in var.wp_salt_ssm_arns : { name = "WORDPRESS_${k}", valueFrom = arn }
-      ])
+      ], local.auto_seed_secrets)
 
       mountPoints = [
         for v in local.efs_volumes : {
