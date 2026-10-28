@@ -87,3 +87,14 @@ variable "offload_uploads_to_s3" {
   type        = bool
   default     = false
 }
+
+variable "price_class" {
+  description = "PriceClass_100 yalnizca Kuzey Amerika, Avrupa ve Israil edge'lerini kullanir; Turkiye'deki ziyaretciler Istanbul yerine ornegin Paris edge'ine (CDG) gider. Istanbul edge'i icin PriceClass_All. Olcumlerde iki ortam ayni sinifta olmali."
+  type        = string
+  default     = "PriceClass_All"
+
+  validation {
+    condition     = contains(["PriceClass_100", "PriceClass_200", "PriceClass_All"], var.price_class)
+    error_message = "price_class PriceClass_100, PriceClass_200 ya da PriceClass_All olmali."
+  }
+}
