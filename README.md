@@ -210,7 +210,25 @@ aws ssm start-session --target $(terraform output -raw db_instance_id)
 **3. Fill the store**
 
 Push the image through the CI/CD pipeline (or set `container_image`), finish the
-WordPress install, then run the seed kit in a task with ECS Exec:
+WordPress install, then run the seed kit in a task with ECS Exec.
+
+Each environment has its own ECR repository, created in the same `apply` as the
+ECS service. When you push the image by hand, create the repository first, push,
+then apply the rest. The image must be `linux/amd64` (the instances are C7i/M7i):
+
+```bash
+terraform apply -target=module.lz.module.ecr     # module.main.module.ecr in frankfurt-baseline
+docker push <ecr_repository_url>:<tag>
+terraform apply -var image_tag=<tag>
+```
+
+Set `image_tag` to the commit SHA for measurement runs: `latest` moves, and the
+next `apply` rolls the service back to whatever `image_tag` points at.
+
+```bash
+aws ecs execute-command --cluster <ecs_cluster_name> --task <TASK_ID> --container wordpress \
+  --interactive --command "su -s /bin/sh www-data -c 'wp eval-file /usr/src/shop-seed/seed.php'"
+```
 
 ```bash
 aws ecs execute-command --cluster <ecs_cluster_name> --task <TASK_ID> --container wordpress \

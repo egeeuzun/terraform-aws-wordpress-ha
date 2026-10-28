@@ -2,6 +2,9 @@
 
 admin_extra_allowed_cidrs = ["203.0.113.4/32"]
 
+# Calistirilacak imaj. Bos/yorumda = <ecr_repository_url>:latest
+# image_tag = "c6d08b7"
+
 # Imaj build/deploy hatti (wordpress-shop-demo reposu)
 enable_cicd             = true
 codestar_connection_arn = "arn:aws:codestar-connections:eu-central-1:ACCOUNT_ID:connection/CONNECTION_ID"
