@@ -123,6 +123,18 @@ variable "desired_count" {
   default = 2
 }
 
+variable "enable_elasticache" {
+  description = "Memcached object cache (ElastiCache). Istanbul Local Zone'da ElastiCache yok; iki ortami ayni uygulama mimarisiyle karsilastirmak icin kapatilabilir."
+  type        = bool
+  default     = true
+}
+
+variable "enable_auto_seed" {
+  description = "Imaj acilista WordPress'i kurar ve seed'i calistirir (SHOP_AUTO_SEED=1, wordpress-shop-demo imaji); elle wp core install / seed gerekmez."
+  type        = bool
+  default     = true
+}
+
 variable "enable_ecs_exec" {
   description = "ECS Exec ile çalışan konteynere kabuk açmayı sağlar. Açmak yeni bir deployment tetikler (task'lar yenilenir) ve oturumlar CloudWatch'a kaydedilir."
   type        = bool

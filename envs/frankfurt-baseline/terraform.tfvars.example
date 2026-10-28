@@ -7,11 +7,13 @@ admin_extra_allowed_cidrs = ["203.0.113.4/32"]
 # Calistirilacak imaj. Bos/yorumda = <ecr_repository_url>:latest
 # image_tag = "c6d08b7"
 
-# Imaj build/deploy hatti (wordpress-shop-demo reposu)
-enable_cicd             = true
-codestar_connection_arn = "arn:aws:codestar-connections:eu-central-1:ACCOUNT_ID:connection/CONNECTION_ID"
-repository_id           = "ORG/wordpress-shop-demo"
-branch                  = "main"
+# Imaj build/deploy hatti (opsiyonel). Kapaliyken imaj elle push edilir ve
+# image_tag ile secilir (README). Acmak icin once konsolda bir CodeStar
+# baglantisi olusturup onaylayin, ARN'ini buraya yazin:
+# enable_cicd             = true
+# codestar_connection_arn = "arn:aws:codestar-connections:eu-central-1:<HESAP>:connection/<ID>"
+# repository_id           = "<kullanici>/wordpress-shop-demo"
+# branch                  = "main"
 
 # Pritunl yonetim VPN'i (opsiyonel)
 # enable_vpn         = true

@@ -1,6 +1,8 @@
 # Faz 1 baseline: Frankfurt, ECS Fargate, RDS. Istanbul Local Zone'a gecisten
-# once olculen "once" hali. Task'lar durumsuz (EFS yok, medya S3'te) ki Local
-# Zone ortamiyla ayni uygulama mimarisi karsilastirilsin.
+# once olculen "once" hali. Uygulama tarafi istanbul-lz ile ayni tutulur ki
+# fark konumdan ve platformdan (Fargate/RDS) gelsin: ayni imaj ve image_tag,
+# acilista otomatik kurulum + seed, EFS yok (medya S3'te), object cache ve
+# read replica varsayilan kapali, CloudFront ayni fiyat sinifinda.
 
 locals {
   # Residency Guard ve maliyet raporlari bu etiketlerle filtreler.
@@ -46,11 +48,13 @@ module "main" {
 
   db_instance_class   = "db.t3.micro"
   create_read_replica = var.create_read_replica
+  enable_elasticache  = var.enable_elasticache
   desired_count       = 2
   enable_waf          = true
 
-  # Seed kiti ECS Exec ile calistirilir (wp eval-file /usr/src/shop-seed/seed.php)
-  enable_ecs_exec = true
+  # Seed acilista kendiliginden calisir; ECS Exec bakim ve elle seed icin
+  enable_ecs_exec  = true
+  enable_auto_seed = true
 
   enable_efs             = false
   offload_uploads_to_s3  = true

@@ -28,14 +28,18 @@ run ourselves.
 ```
 Customer ──► CloudFront + WAF ──► Load balancer ──► WordPress on ECS Fargate (2 AZs)
                   │                                   ├── RDS MariaDB (managed database)
-                  │                                   └── ElastiCache (cache)
+                  │                                   └── ElastiCache (cache, off by default)
                   └── /wp-content/uploads ──► S3 bucket (product images)
 
 All of it in Frankfurt (eu-central-1).
 ```
 
 This is `envs/frankfurt-baseline`. It is the "before" picture we measure
-against.
+against. The application side matches `envs/istanbul-lz`, so the difference
+comes from the location and the platform (Fargate, RDS): the same image and
+`image_tag`, the same automatic install and seed, no EFS, no object cache and
+no read replica (both can be switched on with `enable_elasticache` and
+`create_read_replica`), and the same CloudFront price class.
 
 ## Target: the Istanbul Local Zone
 
@@ -74,7 +78,7 @@ Finding them is the next step of the project.
 | Database backups | RDS backups + AWS Backup | Nightly **EBS snapshots** stored in the zone itself, 7 kept | The backup copy must stay in Istanbul too. A normal snapshot would be stored in Frankfurt. |
 | Product images | S3 bucket in Frankfurt | Still the S3 bucket in Frankfurt (for now) | S3 in the zone is a different kind of bucket (a "directory bucket"). We have not checked yet that the media plugin and CloudFront work with it. Product photos are not personal data. |
 | Shared files (EFS) | Not used | Not used | Code is in the image, images are in S3. We removed EFS in Frankfurt first, so both setups look the same. |
-| Cache | ElastiCache | No cache (for now) | ElastiCache is not offered there, and the cache holds customer data. The store works without it, a bit slower. |
+| Cache | ElastiCache (optional, off by default so both setups match) | No cache (for now) | ElastiCache is not offered there, and the cache holds customer data. The store works without it, a bit slower. |
 | Load balancer | ALB across 2 AZs | A separate ALB in the zone's subnets | An ALB cannot mix normal AZ subnets with Local Zone subnets. |
 | Firewall (WAF) | On CloudFront | Still on CloudFront | A Local Zone ALB cannot have a WAF attached. Ours was already on CloudFront. |
 
@@ -184,7 +188,7 @@ accept it. The state bucket has `prevent_destroy`.
 
 ```bash
 cd envs/frankfurt-baseline
-cp terraform.tfvars.example terraform.tfvars   # admin IPs, CI/CD connection
+cp terraform.tfvars.example terraform.tfvars   # admin IPs, image_tag
 terraform init -backend-config=backend.hcl
 terraform apply
 ```
@@ -224,7 +228,7 @@ terraform apply -var image_tag=<tag>
 Set `image_tag` to the commit SHA for measurement runs: `latest` moves, and the
 next `apply` rolls the service back to whatever `image_tag` points at.
 
-In `envs/istanbul-lz` the store fills itself (`enable_auto_seed`, on by
+Both environments fill the store by themselves (`enable_auto_seed`, on by
 default). When a task starts, the image installs WordPress in Turkish if it is
 not installed yet, then runs the seed kit if this database has not seen this
 version of it. Only one task does the work; watch it in the container log
@@ -237,8 +241,8 @@ aws ssm get-parameter --with-decryption --query Parameter.Value --output text \
 ```
 
 A WordPress installed by hand before this keeps its own admin password; the
-seed still runs once on the next deploy. To run the seed by hand (for example
-in `frankfurt-baseline`), use ECS Exec:
+seed still runs once on the next deploy. To run the seed by hand, use ECS
+Exec:
 
 ```bash
 aws ecs execute-command --cluster <ecs_cluster_name> --task <TASK_ID> --container wordpress \
