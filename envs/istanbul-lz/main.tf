@@ -50,6 +50,9 @@ module "lz" {
 
   admin_extra_allowed_cidrs = var.admin_extra_allowed_cidrs
 
+  container_image = var.container_image
+  image_tag       = var.image_tag
+
   enable_cicd             = var.enable_cicd
   codestar_connection_arn = var.codestar_connection_arn
   repository_id           = var.repository_id

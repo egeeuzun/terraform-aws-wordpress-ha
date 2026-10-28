@@ -52,6 +52,18 @@ variable "admin_extra_allowed_cidrs" {
   default     = []
 }
 
+variable "container_image" {
+  description = "Tam imaj adresi (repo:tag veya repo@sha256:...). Bos = bu ortamin ECR repo'su + image_tag."
+  type        = string
+  default     = ""
+}
+
+variable "image_tag" {
+  description = "ECR'dan cekilecek tag. Olcum turlarinda commit SHA'si verin: latest degisir, pipeline SHA'li tag'i deploy eder ve sonraki apply servisi image_tag'e geri alir."
+  type        = string
+  default     = "latest"
+}
+
 variable "enable_cicd" {
   type    = bool
   default = false
