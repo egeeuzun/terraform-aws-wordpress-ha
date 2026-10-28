@@ -79,11 +79,18 @@ locals {
     rmdir /var/lib/mysql/lost+found 2>/dev/null || true
     chown -R mysql:mysql /var/lib/mysql
 
-    # Bos disk: veri dizinini olustur. Ubuntu 26.04 paketi /var/lib/mysql'i
-    # kurulumda olusturmuyor, kopyalanacak bir sey yok. Dolu disk (instance
-    # degisimi): oldugu gibi kullan.
+    # Bos disk: veri dizinini olustur. Dolu disk (instance degisimi): oldugu
+    # gibi kullan. mysql dizini olmayan bir veri dizini gecerli bir veritabani
+    # degildir (yarim kalmis bir denemenin kalintisi), temizlenir.
+    #
+    # Root olarak calisan mariadbd burada mysql kullanicisina gecemiyor
+    # ("Cannot change uid/gid", ayni sebeple paketin kendi kurulumu da veri
+    # dizinini olusturamiyor). Bu yuzden dogrudan mysql kullanicisi olarak,
+    # cloud-init'in disinda systemd uzerinden calistirilir.
     if [ ! -d /var/lib/mysql/mysql ]; then
-      mariadb-install-db --user=mysql --datadir=/var/lib/mysql --skip-test-db
+      find /var/lib/mysql -mindepth 1 -delete
+      systemd-run --wait --pipe --collect --uid=mysql --gid=mysql \
+        mariadb-install-db --datadir=/var/lib/mysql --skip-test-db
     fi
 
     # RDS gibi yalnizca TLS'li baglanti. Imaj sunucu sertifikasini dogrulamiyor,
