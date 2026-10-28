@@ -39,3 +39,13 @@ output "nat_location" {
   description = "NAT gateway'in durdugu zone"
   value       = var.nat_in_local_zone ? var.local_zone : data.aws_availability_zone.lz.parent_zone_name
 }
+
+output "private_egress_id" {
+  description = "Ozel subnet'lerin internete cikisini tasiyan kaynaklar (NAT, route table ve baglantilari). Bunlara bagli olmasi gerekenler icin (bkz. lz/main.tf, terraform_data.private_egress)."
+  value = join(",", [
+    aws_nat_gateway.this.id,
+    aws_route_table.private.id,
+    aws_route_table_association.app.id,
+    aws_route_table_association.data.id,
+  ])
+}

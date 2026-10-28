@@ -113,6 +113,17 @@ module "network" {
   nat_in_local_zone = var.nat_in_local_zone
 }
 
+# ECS instance'lari ve agent'lari ECS API'ye NAT uzerinden ulasir. Destroy'da
+# NAT/route once silinirse agent task'larin durdugunu bildiremez; servis
+# DRAINING'de kalir, ALB ve dolayisiyla IGW de silinemez. capacity ve ecs
+# modulleri buna depends_on ile baglanir: once onlar, sonra cikis yolu silinir.
+# Tum network modulune baglamak yerine bu ara kaynak: network'teki ilgisiz
+# degisiklikler (etiket, yeni log ayari) ECS modullerindeki data source'lari
+# apply anina ertelemesin.
+resource "terraform_data" "private_egress" {
+  input = module.network.private_egress_id
+}
+
 module "security" {
   source = "../modules/security"
 
@@ -180,6 +191,8 @@ module "capacity" {
 
   # Task'lar istek islerken musteri verisi bellekte ve gecici diskte durur
   tags = local.personal_data_tags
+
+  depends_on = [terraform_data.private_egress]
 }
 
 module "ecs" {
@@ -215,6 +228,8 @@ module "ecs" {
   media_remove_local   = true
 
   tags = local.personal_data_tags
+
+  depends_on = [terraform_data.private_egress]
 }
 
 # --- Medya ve CDN -------------------------------------------------------------
