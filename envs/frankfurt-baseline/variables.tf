@@ -25,10 +25,16 @@ variable "region" {
   default = "eu-central-1"
 }
 
+variable "enable_elasticache" {
+  description = "Memcached object cache. istanbul-lz'de cache yok; karsilastirma ayni uygulama mimarisiyle olsun diye varsayilan kapali."
+  type        = bool
+  default     = false
+}
+
 variable "create_read_replica" {
   description = "Imaj yalnizca writer endpoint'i kullanir; replica okuma yuku almaz, sadece diyagramdaki HA topolojisi icin."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "enable_vpn" {

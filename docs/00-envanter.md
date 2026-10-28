@@ -14,7 +14,7 @@ referans.
 | Uygulama | ECS Fargate, servis başına 2 task (autoscaling 2–6, CPU %70) |
 | İmaj | ECR `<name>-wordpress`; CodeBuild, wordpress-shop-demo reposundaki Dockerfile'dan üretir |
 | Veritabanı | RDS MariaDB 11.8, `db.t3.micro`, gp3, şifreli, TLS zorunlu |
-| Object cache | ElastiCache Memcached, 2 node, cross-AZ |
+| Object cache | ElastiCache Memcached, 2 node, cross-AZ; baseline'da varsayılan kapalı (`enable_elasticache`), LZ ile aynı uygulama mimarisi |
 | Medya | S3 (OAC ile yalnızca CloudFront okur), WP Offload Media Lite yazar |
 | `wp-content` | Baseline'da EFS yok: kod imajda, medya S3'te. EFS opsiyonel (`enable_efs`). |
 | CDN / WAF | CloudFront + WAF (us-east-1), ALB yalnızca CloudFront prefix list'inden erişilebilir |
@@ -52,9 +52,9 @@ Task'a verilen ortam değişkenleri: `WORDPRESS_DB_HOST/NAME/USER`,
 
 - RDS MariaDB `11.8.8`, 20 GB gp3 (100 GB'a kadar otomatik büyür), şifreli,
   public değil.
-- Multi-AZ varsayılan kapalı. Read replica varsayılan açık, ama imaj yalnızca
-  writer endpoint'i kullanıyor (HyperDB/LudicrousDB yok); replica bugün okuma
-  yükü almıyor.
+- Multi-AZ varsayılan kapalı. Read replica baseline'da varsayılan kapalı
+  (`create_read_replica`): imaj yalnızca writer endpoint'i kullanıyor
+  (HyperDB/LudicrousDB yok), replica okuma yükü almıyordu.
 - Yedek: RDS otomatik yedek 7 gün + AWS Backup günlük, 30 gün saklama.
   Snapshot'lar ve recovery point'ler etiketleri taşır (`copy_tags_to_snapshot`,
   `recovery_point_tags`).
@@ -113,8 +113,8 @@ kişisel veri değil), ECR imajı (kişisel veri yok).
   `docker/install-translations.sh`); çalışma anında wordpress.org'a gidilmiyor.
 - **Eklenti sürümleri sabit değil.** Aynı commit'ten farklı günlerde farklı
   WooCommerce sürümü çıkabilir; ölçüm turları arasında karşılaştırmayı bozar.
-- **Read replica boşta.** Maliyet var, okuma yükü yok. Ölçümlerde ya
-  kapatılmalı ya da imaja replica desteği eklenmeli.
+- ~~**Read replica boşta.**~~ Baseline'da varsayılan kapatıldı; açılırsa
+  imaja replica desteği eklenmeli.
 - **`WORDPRESS_CONFIG_EXTRA`** ECS modülünde hâlâ veriliyor ama imajın kendi
   `wp-config.php`'si bunu okumuyor; aynı işi (HTTPS algılama, DB TLS) kendisi
   yapıyor. Stok `wordpress` imajıyla çalışılırsa gerekli olduğu için duruyor.

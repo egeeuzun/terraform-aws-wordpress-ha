@@ -49,3 +49,7 @@ output "ecs_cluster_name" {
 output "static_bucket_name" {
   value = module.main.static_bucket_name
 }
+
+output "admin_password_ssm_name" {
+  value = module.main.admin_password_ssm_name
+}

@@ -119,6 +119,21 @@ resource "aws_ssm_parameter" "wp_salt" {
   tags = { Name = "${local.name}-wp-salt-${lower(each.key)}" }
 }
 
+# WordPress yonetici parolasi; imaj ilk acilista bununla kurar (auto_seed).
+# Okumak icin: terraform output -raw admin_password_ssm_name
+resource "random_password" "admin" {
+  length  = 24
+  special = false
+}
+
+resource "aws_ssm_parameter" "admin_password" {
+  name  = "/${local.name}/wp-admin-password"
+  type  = "SecureString"
+  value = random_password.admin.result
+
+  tags = { Name = "${local.name}-wp-admin-password" }
+}
+
 module "network" {
   source = "../modules/network"
 
@@ -205,8 +220,14 @@ module "rds" {
   tags                      = local.personal_data_tags
 }
 
+moved {
+  from = module.elasticache
+  to   = module.elasticache[0]
+}
+
 module "elasticache" {
   source = "../modules/elasticache"
+  count  = var.enable_elasticache ? 1 : 0
 
   name            = local.name
   data_subnet_ids = module.network.data_subnet_ids
@@ -237,8 +258,11 @@ module "ecs" {
   db_username            = module.rds.db_username
   db_password_ssm_arn    = aws_ssm_parameter.db_password.arn
   wp_salt_ssm_arns       = { for k, p in aws_ssm_parameter.wp_salt : k => p.arn }
-  memcached_endpoint     = join(",", [for a in module.elasticache.node_addresses : "${a}:11211"])
+  memcached_endpoint     = var.enable_elasticache ? join(",", [for a in module.elasticache[0].node_addresses : "${a}:11211"]) : ""
   wp_home                = "https://${module.cdn.cloudfront_domain_name}"
+
+  auto_seed              = var.enable_auto_seed
+  admin_password_ssm_arn = aws_ssm_parameter.admin_password.arn
 
   efs_enabled          = var.enable_efs
   efs_id               = one(module.efs[*].efs_id)
@@ -403,7 +427,13 @@ output "rds_replica_address" {
 }
 
 output "memcached_endpoint" {
-  value = module.elasticache.configuration_endpoint
+  description = "enable_elasticache kapaliyken null"
+  value       = one(module.elasticache[*].configuration_endpoint)
+}
+
+output "admin_password_ssm_name" {
+  description = "WordPress yonetici parolasi: aws ssm get-parameter --with-decryption --query Parameter.Value --output text --name <bu deger>"
+  value       = aws_ssm_parameter.admin_password.name
 }
 
 output "efs_id" {
